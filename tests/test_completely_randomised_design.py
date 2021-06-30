@@ -26,21 +26,21 @@ class LinearModelTestCase(unittest.TestCase):
 
 class CompleteRandomisedDesignTestCase(unittest.TestCase):
     def test_create_combinations(self):
-        design = sim.CompleteRandomisedDesign(treatments_domain=[[0, 30],
-                                                                 [0, 100],
-                                                                 [0, 28]]
-                                              , treatments_increments=[[3],
-                                                                       [5],
-                                                                       [4]]
+        design = sim.CompleteRandomisedDesign(treatments_domain=[[0.0, 100.0],
+                                                                 [0.0, 100.0],
+                                                                 [0.0, 100.0]]
+                                              , treatments_increments=[[0.0, 0.25, 0.5, 1.0],
+                                                                       [0.0, 0.25, 0.5, 1.0],
+                                                                       [0.0, 0.25, 0.5, 1.0]]
                                               , treatments_dp=[[2],
                                                                [2],
                                                                [2]]
-                                              , treatments_measurement_error_sd=[[1.0],
-                                                                                 [2.0],
-                                                                                 [3.0]]
+                                              , treatments_measurement_error_sd=[[0.1],
+                                                                                 [0.1],
+                                                                                 [0.1]]
                                               , treatments_measurement_error_bias=[[1.0],
-                                                                                   [2.0],
-                                                                                   [3.0]]
+                                                                                   [1.0],
+                                                                                   [1.0]]
                                               )
         self.assertEqual(True, False)
 

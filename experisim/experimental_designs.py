@@ -38,15 +38,17 @@ class CompleteRandomisedDesign(Experiment):
                  , treatments_measurement_error_sd: [[float]]
                  , treatments_measurement_error_bias: [[float]]):
 
-        self.treatments_actual_values = self.calculate_treatment_levels(treatments_domain,treatments_increments)
-
-        self.actual_treatment_combinations = self.calculate_treatment_combinations(self.treatments_actual_values)
-
-        self.approximate_treatment_combinations = \
-            self.measure_treatment_combinations(self.actual_treatment_combinations,
+        treatments_actual_values = self.calculate_treatment_levels(treatments_domain,treatments_increments)
+        self.treatments_actual_values = np.asarray(treatments_actual_values)
+        actual_treatments_combinations = self.calculate_treatment_combinations(treatments_actual_values)
+        self.actual_treatments_combinations = np.asarray(actual_treatments_combinations)
+        approximate_treatment_combinations = \
+            self.measure_treatment_combinations(actual_treatments_combinations,
+                                                treatments_domain,
                                                 treatments_dp,
                                                 treatments_measurement_error_sd,
                                                 treatments_measurement_error_bias)
+        self.approximate_treatment_combinations = np.asarray(approximate_treatment_combinations)
 
     @staticmethod
     def calculate_treatment_levels(treatments_domain: [[(float, float)]],
@@ -54,12 +56,12 @@ class CompleteRandomisedDesign(Experiment):
         treatments_actual_values = []
         for treatment_index in range(len(treatments_domain)):
             treatment_actual_values = []
-            treatment_levels = treatments_increments[treatment_index][0]
+            treatment_levels = treatments_increments[treatment_index]
             treatment_domain = treatments_domain[treatment_index]
             treatment_start = treatment_domain[0]
             treatment_end = treatment_domain[1]
-            treatment_increment = (treatment_end - treatment_start) / float(treatment_levels)
-            for level in range(treatment_levels + 1):
+            treatment_increment = treatment_end - treatment_start
+            for level in treatment_levels:
                 treatment_value = treatment_start + level * treatment_increment
                 treatment_actual_values.append(treatment_value)
             treatments_actual_values.append(treatment_actual_values)
@@ -95,6 +97,7 @@ class CompleteRandomisedDesign(Experiment):
 
     @staticmethod
     def measure_treatment_combinations(treatments_combinations: [[float]],
+                                       treatments_domain: [[float]],
                                        dp: [[int]],
                                        measurement_error_sd: [[float]],
                                        measurement_error_bias: [[float]]
@@ -102,13 +105,18 @@ class CompleteRandomisedDesign(Experiment):
 
         for treatments_combination in treatments_combinations:
             for treatment_index in range(len(treatments_combination)):
+                current_domain = treatments_domain[treatment_index]
                 measurement_dp = dp[treatment_index][0]
                 measurement_sd = measurement_error_sd[treatment_index][0]
                 measurement_error = stats.norm.rvs(loc=0, scale=measurement_sd, size=1)[0]
                 measurement_bias = measurement_error_bias[treatment_index][0]
                 treatments_combination[treatment_index] = \
-                    np.round(treatments_combination[treatment_index] + measurement_bias + measurement_error,
+                    np.round(treatments_combination[treatment_index] - measurement_bias - measurement_error,
                              measurement_dp)
+                # if treatments_combination[treatment_index] < current_domain[0]:
+                #     treatments_combination[treatment_index] = current_domain[0]
+                # elif treatments_combination[treatment_index] > current_domain[1]:
+                #     treatments_combination[treatment_index] = current_domain[1]
 
         return treatments_combinations
 
