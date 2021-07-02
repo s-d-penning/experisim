@@ -5,6 +5,90 @@ import pandas as pd
 import scipy.stats as stats
 
 
+class Combinatorics:
+    @staticmethod
+    def calculate_levels(domains: [[(float, float)]],
+                         domain_fractions: [[int]]
+                         ) -> [[float]]:
+        domains_levels = []
+        for domain_index in range(len(domains)):
+            domain = domains[domain_index]
+            domain_width = domain[1] - domain[0]
+            fractional_levels = domain_fractions[domain_index]
+            domain_levels = []
+            for fractional_level in fractional_levels:
+                domain_level = domain[0] + fractional_level * domain_width
+                domain_levels.append(domain_level)
+            domains_levels.append(domain_levels)
+
+        return domains_levels
+
+    @staticmethod
+    def calculate_combinations(factors_values: [[float]],
+                               factor_combination: [float] = None
+                               ) -> [[float]]:
+        all_combinations = []
+        if factor_combination is None:
+            factor_combination = []
+
+        if len(factors_values) > 1:
+            current_factor_values = factors_values[:1][0]
+            remaining_factor_values = factors_values[1:]
+            for current_factor_value in current_factor_values:
+                expanded_factor_combination = factor_combination + [current_factor_value]
+                c = Combinatorics.calculate_combinations(remaining_factor_values,
+                                                         expanded_factor_combination)
+                for combination in c:
+                    all_combinations.append(combination)
+        else:
+            c = []
+            current_factor_values = factors_values[0]
+            for factor_value in current_factor_values:
+                combination = factor_combination + [factor_value]
+                c.append(combination)
+            return c
+
+        return all_combinations
+
+    @staticmethod
+    def calculate_true_combinations(measured_combinations_values: [[float]],
+                                    domain_values: [[float]],
+                                    is_domain_boundaries: [[bool]],
+                                    dp: [[int]],
+                                    measurement_error_sd: [[float]],
+                                    measurement_error_bias: [[float]]
+                                    ) -> np.array:
+
+        true_combinations_values = []
+        for measured_combination in measured_combinations_values:
+            true_combination_values = []
+            for factor_index in range(len(measured_combination)):
+                domain = domain_values[factor_index]
+                is_domain_boundary = is_domain_boundaries[factor_index]
+                is_left_boundary = is_domain_boundary[0]
+                is_right_boundary = is_domain_boundary[1]
+                measurement_dp = dp[factor_index][0]
+                measurement_sd = measurement_error_sd[factor_index][0]
+                measurement_error = stats.norm.rvs(loc=0, scale=measurement_sd, size=1)[0]
+                measurement_bias = measurement_error_bias[factor_index][0]
+
+                measured_factor_value = measured_combination[factor_index]
+                true_factor_value = measured_factor_value - measurement_bias - measurement_error
+
+                if is_left_boundary:
+                    if true_factor_value < domain[0]:
+                        true_factor_value = domain[0]
+                if is_right_boundary:
+                    if true_factor_value > domain[1]:
+                        true_factor_value = domain[1]
+
+                true_factor_value = np.round(true_factor_value, measurement_dp)
+                true_combination_values.append(true_factor_value)
+            true_combinations_values.append(true_combination_values)
+
+        return true_combinations_values
+
+
 class ExperimentalUnitModel:
     pass
 
@@ -31,94 +115,25 @@ class Experiment:
 
 
 class CompleteRandomisedDesign(Experiment):
-    def __init__(self
-                 , treatments_domain: [[(float, float)]]
-                 , treatments_increments: [[int]]
-                 , treatments_dp: [[int]]
-                 , treatments_measurement_error_sd: [[float]]
-                 , treatments_measurement_error_bias: [[float]]):
+    def __init__(self, factors_domain_values: [[(float, float)]]
+                 , factors_domain_boundaries: [[bool]]
+                 , factors_increments: [[int]]
+                 , factors_dp: [[int]]
+                 , factors_measurement_error_sd: [[float]]
+                 , factors_measurement_error_bias: [[float]]):
 
-        treatments_actual_values = self.calculate_treatment_levels(treatments_domain,treatments_increments)
-        self.treatments_actual_values = np.asarray(treatments_actual_values)
-        actual_treatments_combinations = self.calculate_treatment_combinations(treatments_actual_values)
-        self.actual_treatments_combinations = np.asarray(actual_treatments_combinations)
-        approximate_treatment_combinations = \
-            self.measure_treatment_combinations(actual_treatments_combinations,
-                                                treatments_domain,
-                                                treatments_dp,
-                                                treatments_measurement_error_sd,
-                                                treatments_measurement_error_bias)
-        self.approximate_treatment_combinations = np.asarray(approximate_treatment_combinations)
+        self.stated_factors_level_values = Combinatorics.calculate_levels(factors_domain_values, factors_increments)
 
-    @staticmethod
-    def calculate_treatment_levels(treatments_domain: [[(float, float)]],
-                                   treatments_increments: [[int]]) -> [[float]]:
-        treatments_actual_values = []
-        for treatment_index in range(len(treatments_domain)):
-            treatment_actual_values = []
-            treatment_levels = treatments_increments[treatment_index]
-            treatment_domain = treatments_domain[treatment_index]
-            treatment_start = treatment_domain[0]
-            treatment_end = treatment_domain[1]
-            treatment_increment = treatment_end - treatment_start
-            for level in treatment_levels:
-                treatment_value = treatment_start + level * treatment_increment
-                treatment_actual_values.append(treatment_value)
-            treatments_actual_values.append(treatment_actual_values)
+        stated_factors_combinations = Combinatorics.calculate_combinations(self.stated_factors_level_values)
+        self.stated_factors_combinations = np.asarray(stated_factors_combinations)
 
-        return treatments_actual_values
-
-    @staticmethod
-    def calculate_treatment_combinations(treatments_values: [[float]],
-                                         treatment_combination: [float] = None
-                                         ) -> [[float]]:
-        all_combinations = []
-        if treatment_combination is None:
-            treatment_combination = []
-
-        if len(treatments_values) > 1:
-            current_treatment_values = treatments_values[:1][0]
-            remaining_treatment_values = treatments_values[1:]
-            for current_treatment_value in current_treatment_values:
-                expanded_treatment_combination = treatment_combination + [current_treatment_value]
-                c = CompleteRandomisedDesign.calculate_treatment_combinations(remaining_treatment_values,
-                                                                              expanded_treatment_combination)
-                for combination in c:
-                    all_combinations.append(combination)
-        else:
-            c = []
-            current_treatment_values = treatments_values[0]
-            for treatment_value in current_treatment_values:
-                combination = treatment_combination + [treatment_value]
-                c.append(combination)
-            return c
-
-        return all_combinations
-
-    @staticmethod
-    def measure_treatment_combinations(treatments_combinations: [[float]],
-                                       treatments_domain: [[float]],
-                                       dp: [[int]],
-                                       measurement_error_sd: [[float]],
-                                       measurement_error_bias: [[float]]
-                                       ) -> np.array:
-
-        for treatments_combination in treatments_combinations:
-            for treatment_index in range(len(treatments_combination)):
-                current_domain = treatments_domain[treatment_index]
-                measurement_dp = dp[treatment_index][0]
-                measurement_sd = measurement_error_sd[treatment_index][0]
-                measurement_error = stats.norm.rvs(loc=0, scale=measurement_sd, size=1)[0]
-                measurement_bias = measurement_error_bias[treatment_index][0]
-                treatments_combination[treatment_index] = \
-                    np.round(treatments_combination[treatment_index] - measurement_bias - measurement_error,
-                             measurement_dp)
-                # if treatments_combination[treatment_index] < current_domain[0]:
-                #     treatments_combination[treatment_index] = current_domain[0]
-                # elif treatments_combination[treatment_index] > current_domain[1]:
-                #     treatments_combination[treatment_index] = current_domain[1]
-
-        return treatments_combinations
+        true_factors_combinations = Combinatorics.calculate_true_combinations(stated_factors_combinations,
+                                                                              factors_domain_values,
+                                                                              factors_domain_boundaries,
+                                                                              factors_dp,
+                                                                              factors_measurement_error_sd,
+                                                                              factors_measurement_error_bias)
+        self.true_factors_combinations = np.asarray(true_factors_combinations)
 
     def run_experiment(self) -> pd.DataFrame:
         raise NotImplementedError
