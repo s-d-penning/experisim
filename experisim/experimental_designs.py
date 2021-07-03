@@ -115,25 +115,26 @@ class Experiment:
 
 
 class CompleteRandomisedDesign(Experiment):
-    def __init__(self, factors_domain_values: [[(float, float)]]
-                 , factors_domain_boundaries: [[bool]]
-                 , factors_increments: [[int]]
-                 , factors_dp: [[int]]
-                 , factors_measurement_error_sd: [[float]]
-                 , factors_measurement_error_bias: [[float]]):
+    def __init__(self, factor_domain_values: [(float, float)]
+                 , factors_domain_boundaries: [bool]
+                 , factors_increments: [int]
+                 , factors_dp: [int]
+                 , factors_measurement_error_sd: [float]
+                 , factors_measurement_error_bias: [float]):
+        # Keep using the combinatorics class even though we don't have combinations of multiple factors
+        self.measured_level_values = Combinatorics.calculate_levels([factor_domain_values], [factors_increments])[0]
+        measured_factors_levels = Combinatorics.calculate_combinations([self.measured_level_values])
+        true_factors_levels = Combinatorics.calculate_true_combinations(measured_factors_levels,
+                                                                        [factor_domain_values],
+                                                                        [factors_domain_boundaries],
+                                                                        [factors_dp],
+                                                                        [factors_measurement_error_sd],
+                                                                        [factors_measurement_error_bias])
 
-        self.stated_factors_level_values = Combinatorics.calculate_levels(factors_domain_values, factors_increments)
-
-        stated_factors_combinations = Combinatorics.calculate_combinations(self.stated_factors_level_values)
-        self.stated_factors_combinations = np.asarray(stated_factors_combinations)
-
-        true_factors_combinations = Combinatorics.calculate_true_combinations(stated_factors_combinations,
-                                                                              factors_domain_values,
-                                                                              factors_domain_boundaries,
-                                                                              factors_dp,
-                                                                              factors_measurement_error_sd,
-                                                                              factors_measurement_error_bias)
-        self.true_factors_combinations = np.asarray(true_factors_combinations)
+        measured_factors_levels = [factor[0] for factor in measured_factors_levels]
+        true_factors_levels = [factor[0] for factor in true_factors_levels]
+        self.measured_factors_levels = np.asarray(measured_factors_levels)
+        self.true_factors_levels = np.asarray(true_factors_levels)
 
     def run_experiment(self) -> pd.DataFrame:
         raise NotImplementedError
