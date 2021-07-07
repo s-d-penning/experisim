@@ -7,25 +7,8 @@ import scipy.stats as stats
 
 class Combinatorics:
     @staticmethod
-    def calculate_levels(domains: [[(float, float)]],
-                         domain_fractions: [[int]]
-                         ) -> [[float]]:
-        domains_levels = []
-        for domain_index in range(len(domains)):
-            domain = domains[domain_index]
-            domain_width = domain[1] - domain[0]
-            fractional_levels = domain_fractions[domain_index]
-            domain_levels = []
-            for fractional_level in fractional_levels:
-                domain_level = domain[0] + fractional_level * domain_width
-                domain_levels.append(domain_level)
-            domains_levels.append(domain_levels)
-
-        return domains_levels
-
-    @staticmethod
-    def calculate_combinations(factors_values: [[float]],
-                               factor_combination: [float] = None
+    def calculate_combinations(factors_values: [[float]]
+                               , factor_combination: [float] = None
                                ) -> [[float]]:
         all_combinations = []
         if factor_combination is None:
@@ -50,14 +33,53 @@ class Combinatorics:
 
         return all_combinations
 
+
+class ObservationUnitModel:
+    pass
+
+
+class ExperimentalUnitModel:
+    def __init__(self
+                 , observation_units: [ObservationUnitModel]):
+        self.observation_units = observation_units
+
+
+class LinearExperimentalUnitModel(ExperimentalUnitModel):
+    def __init__(self
+                 , responses_mean: [[float]]
+                 , responses_sd: [[float]]
+                 , responses_gradient: [[float]]
+                 , responses_gradient_sd: [[float]]
+                 , observation_units: [ObservationUnitModel]):
+        super().__init__(observation_units)
+
+
+class Experiment:
     @staticmethod
-    def calculate_true_combinations(measured_combinations_values: [[float]],
-                                    domain_values: [[float]],
-                                    is_domain_boundaries: [[bool]],
-                                    dp: [[int]],
-                                    measurement_error_sd: [[float]],
-                                    measurement_error_bias: [[float]]
-                                    ) -> np.array:
+    def calculate_factor_levels(domains: [[(float, float)]],
+                                domain_fractions: [[float]]
+                                ) -> [[float]]:
+        factors_levels = []
+        for domain_index in range(len(domains)):
+            domain = domains[domain_index]
+            domain_width = domain[1] - domain[0]
+            fractional_levels = domain_fractions[domain_index]
+            factor_levels = []
+            for fractional_level in fractional_levels:
+                factor_level = domain[0] + fractional_level * domain_width
+                factor_levels.append(factor_level)
+            factors_levels.append(factor_levels)
+
+        return factors_levels
+
+    @staticmethod
+    def calculate_true_values(measured_combinations_values: [[float]],
+                              domain_values: [[float]],
+                              is_domain_boundaries: [[bool]],
+                              dp: [[int]],
+                              measurement_error_sd: [[float]],
+                              measurement_error_bias: [[float]]
+                              ) -> np.array:
 
         true_combinations_values = []
         for measured_combination in measured_combinations_values:
@@ -89,52 +111,37 @@ class Combinatorics:
         return true_combinations_values
 
 
-class ExperimentalUnitModel:
-    pass
-
-
-class LinearExperimentalUnitModel(ExperimentalUnitModel):
-    def __init__(self, responses_mean: [[float]]
-                 , responses_sd: [[float]]
-                 , responses_gradient: [[float]]
-                 , responses_gradient_sd: [[float]]):
-        pass
-
-
-class ObservationUnitModel:
-    pass
-
-
-class ExperimentalUnit:
-    def __init__(self, observation_units: [ObservationUnitModel]):
-        self.observation_units = observation_units
-
-
-class Experiment:
-    pass
-
-
 class CompleteRandomisedDesign(Experiment):
     def __init__(self, factor_domain_values: [(float, float)]
                  , factors_domain_boundaries: [bool]
-                 , factors_increments: [int]
+                 , factors_increments: [float]
                  , factors_dp: [int]
                  , factors_measurement_error_sd: [float]
-                 , factors_measurement_error_bias: [float]):
-        # Keep using the combinatorics class even though we don't have combinations of multiple factors
-        self.measured_level_values = Combinatorics.calculate_levels([factor_domain_values], [factors_increments])[0]
-        measured_factors_levels = Combinatorics.calculate_combinations([self.measured_level_values])
-        true_factors_levels = Combinatorics.calculate_true_combinations(measured_factors_levels,
-                                                                        [factor_domain_values],
-                                                                        [factors_domain_boundaries],
-                                                                        [factors_dp],
-                                                                        [factors_measurement_error_sd],
-                                                                        [factors_measurement_error_bias])
+                 , factors_measurement_error_bias: [float]
+                 , number_of_replications=1):
+        number_of_factors = 1  # > 1 in full factorial designs
+        self.true_factors_levels = []
 
-        measured_factors_levels = [factor[0] for factor in measured_factors_levels]
-        true_factors_levels = [factor[0] for factor in true_factors_levels]
-        self.measured_factors_levels = np.asarray(measured_factors_levels)
-        self.true_factors_levels = np.asarray(true_factors_levels)
+        self.measured_level_values = Experiment.calculate_factor_levels([factor_domain_values]
+                                                                        , [factors_increments])
+        number_of_levels = len(self.measured_level_values[0])
+
+        self.measured_factors_levels = Combinatorics.calculate_combinations(self.measured_level_values)
+        for replication in range(number_of_replications):
+            true_factors_levels = Experiment.calculate_true_values(self.measured_factors_levels,
+                                                                   [factor_domain_values],
+                                                                   [factors_domain_boundaries],
+                                                                   [factors_dp],
+                                                                   [factors_measurement_error_sd],
+                                                                   [factors_measurement_error_bias])
+            true_factors_levels = [[(self.measured_factors_levels[row][col], true_factors_levels[row][col])]
+                                   for row in range(number_of_levels)
+                                   for col in range(number_of_factors)]
+            self.true_factors_levels.append(true_factors_levels)
+
+        self.run_sequence = [(replication, level) for replication in range(number_of_replications)
+                             for level in range(number_of_levels)]
+        np.random.shuffle(self.run_sequence)
 
     def run_experiment(self) -> pd.DataFrame:
         raise NotImplementedError
